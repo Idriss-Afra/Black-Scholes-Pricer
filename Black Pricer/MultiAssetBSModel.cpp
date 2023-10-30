@@ -5,6 +5,10 @@
 
 using namespace std;
 
+/*
+	The Source file of the class "MultiAssetBSModel".
+*/
+
 double std_normal_cum_func(double x) {
 
 	/* Standard Normal Distribution Cumulative function. */
