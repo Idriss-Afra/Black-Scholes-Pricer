@@ -129,14 +129,14 @@ BlackSpread::BlackSpread(double rate, vector<double> spot, vector<double> vol, v
 
 double BlackSpread::price(Option* opt) {
 	
-	/* BS Spread price : BS formula based on the Margrabe's method. */
+	/* BS Spread price : BS formula based on the Kirk’s approximation & Margrabe's method. */
 
 	double T = opt->getMaturity();
 	double K = opt->getStrike();
 	double df = exp(-r * T);
 	double corr = def_pos_corr[0][1];
-	double S1_adj = S[1] + K;
-	double vol1_adj = sigma[1] * S[1] / (S[1] + K * df);
+	double S1_adj = S[1] + K * df;
+	double vol1_adj = sigma[1] * S[1] / S1_adj;
 	double vol = pow(pow(sigma[0], 2) + pow(vol1_adj, 2) - 2 * sigma[0] * vol1_adj * corr, 0.5);
 	
 	double d1 = (log(S[0] / S1_adj) + pow(vol, 2) * T / 2) / (vol * pow(T, 0.5));
