@@ -74,7 +74,7 @@ The main components are:
 ### Requirements
 
 - A C++17-compatible compiler
-- Visual Studio 2022 with the **Desktop development with C++** workload, or another compiler such as GCC or Clang
+- Visual Studio with the **Desktop development with C++** workload, or another compiler such as GCC or Clang
 
 ### Visual Studio
 
@@ -83,8 +83,6 @@ The main components are:
 3. Select an `x64` configuration such as `Release` or `Debug`.
 4. Build the solution.
 5. Run without debugging with `Ctrl+F5`.
-
-The Visual Studio project targets the v143 platform toolset.
 
 ### Command-Line Compilation
 
