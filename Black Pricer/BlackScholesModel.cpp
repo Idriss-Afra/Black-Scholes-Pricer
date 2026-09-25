@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <numeric> 
 #include <iostream>
+#include <stdexcept>
 
 using namespace std;
 
@@ -38,14 +39,18 @@ double BlackVanilla::price(Option* opt) {
 	
 	/* BS Vanilla price. */
 
-	double T = opt->getMaturity();
-	double K = opt->getStrike();
+	auto* vanilla = dynamic_cast<VanillaOption*>(opt);
+	if (vanilla == nullptr)
+		throw invalid_argument("BlackVanilla requires a VanillaOption.");
+
+	double T = vanilla->getMaturity();
+	double K = vanilla->getStrike();
 	double df = exp(-r * T);
 	double fwd = S / df;
 	double v2T = pow(sigma, 2) * T;
 	double d1 = (log(fwd / K) + v2T / 2) / pow(v2T, 0.5);
 	double d2 = d1 - pow(v2T, 0.5);
-	double phi = opt->getPhi();
+	int phi = vanilla->getPhi();
 	return phi * S * std_normal_cum(phi * d1) - phi * K * df * std_normal_cum(phi * d2);
 }
 
@@ -62,14 +67,18 @@ double BlackDigital::price(Option* opt) {
 	
 	/* BS Digital price. */
 
-	double T = opt->getMaturity();
-	double K = opt->getStrike();
+	auto* digital = dynamic_cast<DigitalOption*>(opt);
+	if (digital == nullptr)
+		throw invalid_argument("BlackDigital requires a DigitalOption.");
+
+	double T = digital->getMaturity();
+	double K = digital->getStrike();
 	double df = exp(-r * T);
 	double fwd = S / df;
 	double v2T = pow(sigma, 2) * T;
 	double d1 = (log(fwd / K) + v2T / 2) / pow(v2T, 0.5);
 	double d2 = d1 - pow(v2T, 0.5);
-	double phi = opt->getPhi();
+	int phi = digital->getPhi();
 	return df * std_normal_cum(phi * d2);
 }
 
@@ -86,36 +95,36 @@ double BlackBarrier::price(Option* opt) {
 	
 	/* BS Barrier price : Barrier Static Replication using Vanilla and Digital Options */
 
-	double barrier = opt->getBarrier();
-	double strike = opt->getStrike();
-	double maturity = opt->getMaturity();
-	double phi = opt->getPhi();
-	string type = opt->getType();
+	auto* barrier_option = dynamic_cast<BarrierOption*>(opt);
+	if (barrier_option == nullptr)
+		throw invalid_argument("BlackBarrier requires a BarrierOption.");
 
-	VanillaOption* vanilla_strike = new VanillaOption(strike, maturity, phi);
-	VanillaOption* vanilla_barrier = new VanillaOption(barrier, maturity, phi);
-	DigitalOption* digital_barrier = new DigitalOption(barrier, maturity, phi);
+	double barrier = barrier_option->getBarrier();
+	double strike = barrier_option->getStrike();
+	double maturity = barrier_option->getMaturity();
+	int phi = barrier_option->getPhi();
+	string type = barrier_option->getType();
+
+	VanillaOption vanilla_strike(strike, maturity, phi);
+	VanillaOption vanilla_barrier(barrier, maturity, phi);
+	DigitalOption digital_barrier(barrier, maturity, phi);
 
 	BlackVanilla bs_vanilla(r, S, sigma);
 	BlackDigital bs_digital(r, S, sigma);
 
-	double vanilla_strike_price = bs_vanilla.price(vanilla_strike);
-	double vanilla_barrier_price = bs_vanilla.price(vanilla_barrier);
-	double digital_barrier_price = bs_digital.price(digital_barrier);
+	double vanilla_strike_price = bs_vanilla.price(&vanilla_strike);
+	double vanilla_barrier_price = bs_vanilla.price(&vanilla_barrier);
+	double digital_barrier_price = bs_digital.price(&digital_barrier);
 
 	double price_out = vanilla_strike_price - vanilla_barrier_price - phi * (barrier - strike) * digital_barrier_price;
-
-	// Remove the spaces from the string type and switch it to upper cases
-	type.erase(remove_if(type.begin(), type.end(), isspace), type.end());
-	for (char& c : type) c = toupper(c);
 	
 	if ((type == "UPOUT" && phi == 1) || (type == "DOWNOUT" && phi == -1))
 		return price_out;
 	if ((type == "UPIN" && phi == 1) || (type == "DOWNIN" && phi == -1))
 		return vanilla_strike_price - price_out;
 
-	cout << "Unknow Barrier Option Type. The possible types are : \"Up Out\" and \"Up In\" for Calls, and \"Down Out\" and \"Down In\" for Puts." << endl;
-	exit(-1);
+	throw invalid_argument("Unknown Barrier Option Type. The possible types are : Up Out and Up In for Calls, and Down Out and Down In for Puts.");
+
 }
 
 
@@ -132,13 +141,17 @@ double BlackAsian::price(Option* opt) {
 	
 	/* BS Asian price : BS formula based on the moments matching method of the arithmetic average. */
 
-	double freq = opt->getFreq();
-	double T = opt->getMaturity();
-	double K = opt->getStrike();
+	auto* asian = dynamic_cast<AsianOption*>(opt);
+	if (asian == nullptr)
+		throw invalid_argument("BlackAsian requires an AsianOption.");
+
+	size_t freq = asian->getFreq();
+	double T = asian->getMaturity();
+	double K = asian->getStrike();
 	vector<double> betas;
 	vector<double> e_v2T;
 
-	for (int i = 1; i <= freq; i++) {
+	for (int i = 1; i <= freq; ++i) {
 		betas.push_back(S * exp(r * i * T / freq) / freq);
 		e_v2T.push_back(exp(pow(sigma, 2) * i * T / freq));
 	}
@@ -147,8 +160,8 @@ double BlackAsian::price(Option* opt) {
 	double m2 = 0;
 	double temp = 0;
 
-	for (int i = 0; i < freq; i++) {
-		for (int j = i; j < freq; j++)
+	for (int i = 0; i < freq; ++i) {
+		for (int j = i; j < freq; ++j)
 			temp += 2 * betas[j];
 		m2 += betas[i] * e_v2T[i] * (temp - betas[i]);
 		temp = 0;
@@ -157,6 +170,6 @@ double BlackAsian::price(Option* opt) {
 	double df = exp(-r * T);
 	double d1 = (log(m1 / K) + log(m2 / pow(m1, 2)) / 2) / pow(log(m2 / pow(m1, 2)), 0.5);
 	double d2 = d1 - pow(log(m2 / pow(m1, 2)), 0.5);
-	double phi = opt->getPhi();
+	int phi = asian->getPhi();
 	return df * (phi * m1 * std_normal_cum(phi * d1) - phi * K * std_normal_cum(phi * d2));
 }

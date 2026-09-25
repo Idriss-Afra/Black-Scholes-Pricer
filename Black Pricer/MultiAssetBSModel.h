@@ -1,5 +1,8 @@
 #pragma once
 #include "Option.h"
+#include <cmath>
+#include <stdexcept>
+#include <utility>
 #include <vector>
 
 /*
@@ -12,39 +15,63 @@ protected :
 	double r; // ZC Rate.
 	vector<double> sigma; // The Underlyings Volatilities.
 	vector<double> S; // The Underlyings Spot Prices.
-	double d; // The Underlyings basket size.
+	size_t d; // The Underlyings basket size.
 	vector<vector<double>> def_pos_corr; // Definite Positive Correlation Matrix.
 	vector<vector<double>> cholesky_corr; // Lower Triangular Matrix : Output of the Cholesky Decomposition Algorithm.
-public:
-	void setSize(double size) { d = size; };
-	double getSize() { return d; };
-	void setRate(double rate) { r = rate; };
-	double getRate() { return r; };
-	void setVol(vector<double> vol) { sigma = vol; };
-	vector<double> getVol() { return sigma; };
-	void setSpot(vector<double> spot) { S = spot; };
-	vector<double> getSpot() { return S; };
+		void setSize(size_t size) {
+		if (size == 0)
+			throw std::invalid_argument("Size must be positive.");
+		d = size;
+	};
+	void setRate(double rate) {
+		if (!std::isfinite(rate))
+			throw std::invalid_argument("Rate must be finite.");
+		r = rate;
+	};
+	void setVol(vector<double> vol) {
+		if (vol.size() != d)
+			throw std::invalid_argument("Volatility dimension must equal model size.");
+		for (double value : vol) {
+			if (!std::isfinite(value) || value <= 0.0)
+				throw std::invalid_argument("Volatility must be finite and positive.");
+		}
+		sigma = std::move(vol);
+	};
+	void setSpot(vector<double> spot) {
+		if (spot.size() != d)
+			throw std::invalid_argument("Spot dimension must equal model size.");
+		for (double value : spot) {
+			if (!std::isfinite(value) || value <= 0.0)
+				throw std::invalid_argument("Spot must be finite and positive.");
+		}
+		S = std::move(spot);
+	};
 	void setCorr(vector<vector<double>> correlations) { def_pos_corr = correlations; };
-	vector<vector<double>> getCorr() { return def_pos_corr; };
+	void validateCorrelationMatrix(const vector<vector<double>>& corr) const;
 	void setCholeskyCorr(vector<vector<double>> correlations) { cholesky_corr = correlations; };
+	void CholeskyAlgo(const vector<vector<double>>& correlations); // Cholesky Decomposition Algorithm.
+
+public :
+	size_t getSize() { return d; };
+	double getRate() { return r; };
+	vector<double> getVol() { return sigma; };
+	vector<double> getSpot() { return S; };
+	vector<vector<double>> getCorr() { return def_pos_corr; };
 	vector<vector<double>> getCholeskyCorr() { return cholesky_corr; };
-	void CholeskyAlgo(vector<vector<double>> correlations); // Cholesky Decomposition Algorithm.
-	void makeCorrDefPos(vector<vector<double>> correlations); // The "makeCorrDefPos" method ensures that the correlation matrix is Definite Positive.
-	vector<double> simulation(vector<double> prev_S, double dt, vector<double> rnd_normal); // The simulation method is called in the "MonteCarlo" class.
+	vector<double> simulation(const vector<double>& prev_S, double dt, const vector<double>& rnd_normal); // The simulation method is called in the "MonteCarlo" class.
 	virtual double price(Option* opt) = 0; // The BS price is a pure virtual method.
+	virtual ~MultiAssetBSModel() = default;
 };
 
 
 class BlackBasket : public MultiAssetBSModel {
-
 public :
-	BlackBasket(double rate, double size, vector<double> spot, vector<double> vol, vector<vector<double>> corr_matrix);
-	double price(Option* opt);
+	BlackBasket(double rate, vector<double> spot, vector<double> vol, vector<vector<double>> corr_matrix);
+	double price(Option* opt) override;
 };
 
 class BlackSpread : public MultiAssetBSModel {
-
 public:
 	BlackSpread(double rate, vector<double> spot, vector<double> vol, vector<vector<double>> corr_matrix);
-	double price(Option* opt);
+	double price(Option* opt) override;
 };
